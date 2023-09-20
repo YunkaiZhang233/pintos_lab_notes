@@ -301,3 +301,220 @@ no_boot_partition:
 ```
 
 `next_partition` will fall through to `next_drive` if partitions in current drive are all read. If all drives are read and no Pintos kernel is found, `jnc read_mbr` will not be executed and hence the program will fall through to `no_such_drive`, which further leads to falling through to `no_boot_partition` (no partition for booting is found). It will then output error message and return an interruption indicating [Interrupt 18](http://www.ctyme.com/intr/rb-2241.htm), no bootable disk available to the system.
+
+---
+
+> At what point and how exactly does the bootloader transfer control to the Pintos kernel?
+
+After finding a satisfactory kernel location, we will then move to loading the kernel (also transferring control from 16-bit mode to 32-bit mode).
+
+By inspecting the codes for `load_kernel` and simultaneously inspecting the execution logic, we found out that the loader will first read the partition's contents into the start load address `0x2000` (but capped at a size of `512kiB` due to BIOS restrictions).
+
+> The kernel is at the beginning of the partition, which might be larger than necessary due to partition boundary alignment conventions, so the loader reads no more than `512 kB` (and the Pintos build process will refuse to produce kernels larger than that). Reading more data than this would cross into the region from `640 kB` to `1 MB` that the PC architecture reserves for hardware and the BIOS, and a standard PC BIOS does not provide any means to load the kernel above `1 MB`.
+
+After such reading process, the loader will eventually pass control to the kernel.
+
+```assembly
+#### Transfer control to the kernel that we loaded.  We read the start
+#### address out of the ELF header (see [ELF1]) and convert it from a
+#### 32-bit linear address into a 16:16 segment:offset address for
+#### real mode, then jump to the converted address.  The 80x86 doesn't
+#### have an instruction to jump to an absolute segment:offset kept in
+#### registers, so in fact we store the address in a temporary memory
+#### location, then jump indirectly through that location.  To save 4
+#### bytes in the loader, we reuse 4 bytes of the loader's code for
+#### this temporary pointer.
+
+    mov $0x2000, %ax
+    mov %ax, %es
+    mov %es:0x18, %dx
+    mov %dx, start
+    movw $0x2000, start + 2
+    ljmp *start
+```
+
+The location of the kernel is stored at a pointer address of its `ELF` header, here namely at address `0x18`. Then this pointer's address data was saved in `dx` and later moved to `start`. See the code snippets for the reason of doing so.
+
+The `start` has recorded the entrance to the kernel and hence have kernel taken control.
+
+(For further information plz refer to _Appendix A_ in the specification).
+
+### Exercise 2.3
+
+Suppose we are interested in **tracing the behavior of one kernel function `palloc_get_page()` and one global variable `uint32_t *init_page_dir`**. For this exercise, you do not need to understand their meaning and the terminology used in them. You will get to know them better in Lab3: Virtual Memory.
+
+> Trace the Pintos kernel and answer the following questions in your design document:
+>
+> - At **the entry of** `pintos_init()`, **what is the value of the expression** `init_page_dir[pd_no(ptov(0))]` in hexadecimal format?
+> - When `palloc_get_page()` is called for the first time,
+>   - what does **the call stack** look like?
+>   - what is **the return value** in hexadecimal format?
+>   - what is **the value of expression** `init_page_dir[pd_no(ptov(0))]` in hexadecimal format?
+> - When `palloc_get_page()` is called for the third time,
+>   - what does **the call stack** look like?
+>   - what is **the return value** in hexadecimal format?
+>   - what is **the value of expression** `init_page_dir[pd_no(ptov(0))]` in hexadecimal format?
+
+#### Hints and Tips
+
+- The GDB command **_p_** may be helpful.
+- After the Pintos kernel takes control, **the initial setup is done in assembly code `threads/start.S`**.
+- Later on, **the kernel will finally kick into the C world by calling the `pintos_init()` function in `threads/init.c`**.
+- **Set a breakpoint at `pintos_init()`** and then continue tracing a bit into the C initialization code. Then read the source code of `pintos_init()` function.
+
+### Notes and Answers 2.3
+
+We invoke Pintos and `gdb` normally as the manual instructed.
+
+---
+
+> - At **the entry of** `pintos_init()`, **what is the value of the expression** `init_page_dir[pd_no(ptov(0))]` in hexadecimal format?
+
+Here are the `gdb` interaction records:
+
+```plain
+(gdb) b pintos_init()
+Function "pintos_init()" not defined.
+Make breakpoint pending on future shared library load? (y or [n])
+(gdb) b pintos_init
+Breakpoint 1 at 0xc00202b6: file ../../threads/init.c, line 78.
+(gdb) b palloc_get_page
+Breakpoint 2 at 0xc0023114: file ../../threads/palloc.c, line 112.
+(gdb) c
+Continuing.
+The target architecture is assumed to be i386
+=> 0xc00202b6 <pintos_init>:    push   %ebp
+
+Breakpoint 1, pintos_init () at ../../threads/init.c:78
+(gdb) p init_page_dir[pd_no(ptov(0))]
+=> 0xc000efef:  int3   
+=> 0xc000efef:  int3   
+$1 = 0
+```
+
+Hence at the entry of `pintos_init`, the value of the expression `init_page_dir[pd_no(ptov(0))]` in hexadecimal form is `0`.
+
+---
+
+> - When `palloc_get_page()` is called for the first time,
+>   - what does **the call stack** look like?
+>   - what is **the return value** in hexadecimal format?
+>   - what is **the value of expression `init_page_dir[pd_no(ptov(0))]`** in hexadecimal format?
+
+Following the previous question, here are the new commands I issued:
+
+```plain
+(gdb) c
+Continuing.
+=> 0xc0023114 <palloc_get_page>:        push   %ebp
+
+Breakpoint 2, palloc_get_page (flags=(PAL_ASSERT | PAL_ZERO)) at ../../threads/palloc.c:112
+(gdb) backtrace
+#0  palloc_get_page (flags=(PAL_ASSERT | PAL_ZERO)) at ../../threads/palloc.c:112
+#1  0xc00203aa in paging_init () at ../../threads/init.c:168
+#2  0xc002031b in pintos_init () at ../../threads/init.c:100
+#3  0xc002013d in start () at ../../threads/start.S:180
+(gdb) finish
+Run till exit from #0  palloc_get_page (flags=(PAL_ASSERT | PAL_ZERO)) at ../../threads/palloc.c:112
+=> 0xc00203aa <paging_init+17>: add    $0x10,%esp
+0xc00203aa in paging_init () at ../../threads/init.c:168
+Value returned is $2 = (void *) 0xc0101000
+(gdb) p/x init_page_dir[pd_no(ptov(0))]
+=> 0xc000ef8f:  int3
+=> 0xc000ef8f:  int3
+$3 = 0x0
+```
+
+To inspect call stack: use `backtrace` (aka `bt`).
+
+```plain
+(gdb) backtrace
+```
+
+This displayed the call stack frame of:
+
+```plain
+#0  palloc_get_page (flags=(PAL_ASSERT | PAL_ZERO)) at ../../threads/palloc.c:11
+2
+#1  0xc00203aa in paging_init () at ../../threads/init.c:168
+#2  0xc002031b in pintos_init () at ../../threads/init.c:100
+#3  0xc002013d in start () at ../../threads/start.S:180
+```
+
+For the return value, issue `finish` (a.k.a., `fi`) command to inspect return value.
+
+```plain
+(gdb) finish
+Run till exit from #0  palloc_get_page (flags=(PAL_ASSERT | PAL_ZERO)) at ../../threads/palloc.c:112
+=> 0xc00203aa <paging_init+17>: add    $0x10,%esp
+0xc00203aa in paging_init () at ../../threads/init.c:168
+Value returned is $2 = (void *) 0xc0101000
+```
+
+The return value is a `(void *)` pointer to address `0xc0101000`.
+
+For the value of expression `init_page_dir[pd_no(ptov(0))]`: issue `p/x` (`print in hexadecimal format`) command.
+
+```plain
+(gdb) p/x init_page_dir[pd_no(ptov(0))]
+=> 0xc000ef8f:  int3
+=> 0xc000ef8f:  int3
+$3 = 0x0
+```
+
+Hence after the first call to `palloc_get_page()`, the value of `init_page_dir[pd_no(ptov(0))]` is still `0`.
+
+---
+
+> - When `palloc_get_page()` is called for the third time,
+>   - what does **the call stack** look like?
+>   - what is **the return value** in hexadecimal format?
+>   - what is **the value of expression** `init_page_dir[pd_no(ptov(0))]` in hexadecimal format?
+
+Similarly, `continue` to run the program for two more times to reach the third call.
+
+```plain
+(gdb) c
+Continuing.
+=> 0xc0023114 <palloc_get_page>:        push   %ebp
+
+Breakpoint 2, palloc_get_page (flags=(PAL_ASSERT | PAL_ZERO)) at ../../threads/palloc.c:112
+(gdb) c
+Continuing.
+=> 0xc0023114 <palloc_get_page>:        push   %ebp
+
+Breakpoint 2, palloc_get_page (flags=PAL_ZERO) at ../../threads/palloc.c:112
+```
+
+The call stack at this moment looks like:
+
+```plain
+(gdb) bt
+#0  palloc_get_page (flags=PAL_ZERO) at ../../threads/palloc.c:112
+#1  0xc0020a81 in thread_create (name=0xc002e895 "idle", priority=0, function=0xc0020eb0 <idle>, aux=0xc000efbc) at ../../threads/thread.c:178
+#2  0xc0020976 in thread_start () at ../../threads/thread.c:111
+#3  0xc0020334 in pintos_init () at ../../threads/init.c:119
+#4  0xc002013d in start () at ../../threads/start.S:180
+```
+
+We will print the return value in hexadecimal format:
+
+```plain
+Run till exit from #0  palloc_get_page (flags=PAL_ZERO) at ../../threads/palloc.c:112
+=> 0xc0020a81 <thread_create+55>:       add    $0x10,%esp
+0xc0020a81 in thread_create (name=0xc002e895 "idle", priority=0, function=0xc0020eb0 <idle>, aux=0xc000efbc) at ../../threads/thread.c:178
+Value returned is $4 = (void *) 0xc0103000
+```
+
+We can see that this is still a `void *` pointer pointing to address `0xc0103000`.
+
+At this time, we again inspect the value of `init_page_dir[pd_no(ptov(0))]`:
+
+```plain
+(gdb) p/x init_page_dir[pd_no(ptov(0))]
+=> 0xc000ef4f:  int3   
+=> 0xc000ef4f:  int3   
+$5 = 0x102027
+```
+
+Hence the value of `init_page_dir[pd_no(ptov(0))]` at this time would be `0x102027`.
