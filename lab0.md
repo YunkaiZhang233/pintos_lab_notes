@@ -27,7 +27,7 @@ Some other recommended readings include:
 
     If everything works, you should see Pintos booting in the [QEMU emulator](https://www.qemu.org), and print `Boot complete` near the end.
 
-    While by default we run Pintos in QEMU, Pintos can also run in the [Bochs](https://bochs.sourceforge.io) and VMWare Player emulator. Bochs will be useful for the Lab1: Threads. 
+    While by default we run Pintos in QEMU, Pintos can also run in the [Bochs](https://bochs.sourceforge.io) and VMWare Player emulator. Bochs will be useful for the Lab1: Threads.
 
     To run Pintos with Bochs, execute
 
@@ -255,7 +255,7 @@ check_partition:
 
 next_partition:
     # No match for this partition, go on to the next one.
-    add $16, %si			# Offset to next partition table entry.
+    add $16, %si # Offset to next partition table entry.
     inc %al
     cmp $510, %si
     jb check_partition
@@ -264,7 +264,7 @@ next_partition:
 So the `MBR` should have the feature of ending with `0xaa55` at address `%es:510` (`510 = 0x1FE`).
 If the bits recorded does not match, the bootloader will jump to the next drive to try again (`jne next_drive`).
 
-Then jump to check partition records. (`offset = 446`). 
+Then jump to check partition records. (`offset = 446`).
 
 - If read result is zero, then this partition is apparently unused, hence will lead to next partition.
 - Pintos kernel uses a type of `0x20` for partition type. (see comments before `read_mbr`) If not match: jump to next partition.
