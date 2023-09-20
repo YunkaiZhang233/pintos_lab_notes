@@ -165,6 +165,14 @@ Continuing.
 Breakpoint 1, 0x00007c00 in ?? ()
 ```
 
+#### General Tips for this Exercise
+
+- **read THROUGH the codes** in `loader.S`.
+- And also read the comments. They are quite self-explanatory.
+- For this exercise, [The JHU Project 0](https://www.cs.jhu.edu/~huang/cs318/fall21/project/project0.html) provides a more detailed explanation.
+
+---
+
 > How does the bootloader read disk sectors? In particular, what BIOS interrupt is used?
 
 At this point, Bootloader has taken control from BIOS and the instructions to be executed correspond to the ones in `loader.S`.
@@ -207,3 +215,9 @@ We can see the Error Code in CF is `0x13` with having the `ah` parameter as `0x4
 > The interrupt number is specified as the parameter of the software interrupt instruction (in Intel assembly language, an "`INT`" instruction), and the function number is specified in the `AH` register; that is, the caller sets the `AH` register to the number of the desired function. In general, the BIOS services corresponding to each interrupt number operate independently of each other, but the functions within one interrupt service are handled by the same BIOS program and are not independent.
 
 This further confirmed by hypothetical guess and by referencing the interruption table, we found that the specific interrupt used is `Extended Read Sectors`.
+
+---
+
+> How does the bootloader decide whether it successfully finds the Pintos kernel?
+
+This time we turn back to the codes in `loader.S`. 
