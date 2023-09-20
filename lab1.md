@@ -170,6 +170,7 @@ Breakpoint 1, 0x00007c00 in ?? ()
 - **read THROUGH the codes** in `loader.S`.
 - And also read the comments. They are quite self-explanatory.
 - For this exercise, [The JHU Project 0](https://www.cs.jhu.edu/~huang/cs318/fall21/project/project0.html) provides a more detailed explanation.
+- For a list of Interruptions, see the referenced [Ralf Brown's Interrupt List](https://www.ctyme.com/rbrown.htm) (i.e., `IntrList`).
 
 ---
 
@@ -220,4 +221,83 @@ This further confirmed by hypothetical guess and by referencing the interruption
 
 > How does the bootloader decide whether it successfully finds the Pintos kernel?
 
-This time we turn back to the codes in `loader.S`. 
+This time we turn back to the codes in `loader.S` for `read_mbr`. (FYI: `mbr` stands for `Master Boot Records`).
+
+Notice in the parts covered by the previous question, `read_sector` modified error code in `CF` (`int $0x13`).
+
+Follow through the code, `jc no_such_drive` branches for drive read error. If no such error exists, status messages are printed to show the disk and partition being scanned.
+
+Then:
+
+```assembly
+# Check for MBR signature--if not present, it's not a
+# partitioned hard disk.
+cmpw $0xaa55, %es:510
+jne next_drive
+
+mov $446, %si   # Offset of partition table entry 1.
+mov $'1', %al
+check_partition:
+    # Is it an unused partition?
+    cmpl $0, %es:(%si)
+    je next_partition
+
+    # Print [1-4].
+    call putc
+
+    # Is it a Pintos kernel partition?
+    cmpb $0x20, %es:4(%si)
+    jne next_partition
+
+    # Is it a bootable partition?
+    cmpb $0x80, %es:(%si)
+    je load_kernel
+
+next_partition:
+    # No match for this partition, go on to the next one.
+    add $16, %si			# Offset to next partition table entry.
+    inc %al
+    cmp $510, %si
+    jb check_partition
+```
+
+So the `MBR` should have the feature of ending with `0xaa55` at address `%es:510` (`510 = 0x1FE`).
+If the bits recorded does not match, the bootloader will jump to the next drive to try again (`jne next_drive`).
+
+Then jump to check partition records. (`offset = 446`). 
+
+- If read result is zero, then this partition is apparently unused, hence will lead to next partition.
+- Pintos kernel uses a type of `0x20` for partition type. (see comments before `read_mbr`) If not match: jump to next partition.
+- Check the first byte of the value recorded in the current partition. If `0x80` is detected then this is bootable.
+
+If all of the checks above are pass, then it means we have found the partition for Pintos kernel.
+
+---
+
+> What happens when the bootloader could not find the Pintos kernel?
+
+Read through the codes:
+
+```assembly
+next_partition:
+    # No match for this partition, go on to the next one.
+    add $16, %si        # Offset to next partition table entry.
+    inc %al
+    cmp $510, %si
+    jb check_partition
+next_drive:
+    # No match on this drive, go on to the next one.
+    inc %dl
+    jnc read_mbr
+
+no_such_drive:
+no_boot_partition:
+    # Didn't find a Pintos kernel partition anywhere, give up.
+    call puts
+    .string "\rNot found\r"
+
+    # Notify BIOS that boot failed.  See [IntrList].
+    int $0x18
+```
+
+`next_partition` will fall through to `next_drive` if partitions in current drive are all read. If all drives are read and no Pintos kernel is found, `jnc read_mbr` will not be executed and hence the program will fall through to `no_such_drive`, which further leads to falling through to `no_boot_partition` (no partition for booting is found). It will then output error message and return an interruption indicating [Interrupt 18](http://www.ctyme.com/intr/rb-2241.htm), no bootable disk available to the system.
