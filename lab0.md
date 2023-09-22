@@ -7,7 +7,7 @@ This set of lab notes is based on the [UCB CS-162 Fall 2020](https://inst.eecs.b
 Some other recommended readings include:
 
 - [JHU CS-318 Project 0: Getting Real](https://www.cs.jhu.edu/~huang/cs318/fall21/project/project0.html)
-- Stanford
+- [Stanford CS-140 Pintos Specification](https://web.stanford.edu/class/cs140/projects/pintos/pintos.pdf)
 
 ## Task 1: Booting Pintos
 
@@ -518,3 +518,97 @@ $5 = 0x102027
 ```
 
 Hence the value of `init_page_dir[pd_no(ptov(0))]` at this time would be `0x102027`.
+
+## Task 3: Kernel Monitor
+
+### Exercise 3.1
+
+At last, you will get to make a small enhancement to Pintos and write some code!
+
+- In particular, when Pintos finishes booting, it will check for the supplied command line arguments stored in the kernel image. Typically you will pass some tests for the kernel to run, e.g., `pintos -- run alarm-zero`.
+- If there is no command line argument passed (i.e., `pintos --`, note that `--` is needed as a separator for the pintos perl script and is not passed as part of command line arguments to the kernel), the kernel will simply finish up. This is a little boring.
+
+**Your task is to add a tiny kernel shell** to Pintos so that when no command line argument is passed, it will run this shell interactively.
+
+- Note that this is a kernel-level shell. In later projects, you will be enhancing the user program and file system parts of Pintos, at which point you will get to run the regular shell.
+- **You only need to make this monitor very simple.** Its requirements are described below.
+
+> Enhance `threads/init.c` to implement a tiny kernel monitor in Pintos.
+>
+> Requirments:
+>
+> - It starts with a prompt `PKUOS>` and waits for user input.
+> - **As the user types in a printable character, display the character.**
+> - When a newline is entered, it parses the input and checks if it is **`whoami`**. If it is **`whoami`**, print your student id. Afterward, the monitor will print the command prompt `PKUOS>` again in the next line and repeat.
+> - If the user input is **`exit`**, the monitor will quit to allow the kernel to finish. For the other input, print invalid command. Handling special input such as backspace is not required.
+> - If you implement such an enhancement, mention this in your design document.
+
+The code place for you to add this feature is in line 136 of `threads/init.c` with
+
+```c
+// TODO: no command line passed to kernel. Run interactively.
+```
+
+You may need to use some functions provided in `lib/kernel/console.c`, `lib/stdio.c` and `devices/input.c`.
+
+### Notes and Solutions 3.1
+
+See code.
+
+**Tips:**
+
+1. the standard functions from `stdlib` should not be taken for granted as they are actually not part of the program. Instead they should be manually imported from other libraries.
+2. General tips for writing `c` programs: remember to `free` after memory allocation and also remember to be careful during `string` treatment.
+
+#### Code
+
+```c
+  if (*argv != NULL) {
+    /* Run actions specified on kernel command line. */
+    run_actions (argv);
+  } else {
+    // TODO: no command line passed to kernel. Run interactively 
+    size_t command_max_input = 20;
+    char* buf = (char *) malloc(command_max_input);
+    while (true) {
+      printf("PKUOS>");
+      memset(buf, '\0', command_max_input);
+      size_t index = 0;
+      while (true) {
+        char c = input_getc();
+        if (c == new_line_char) {
+          printf("\n"); // a line terminates here and switch to the next line
+          break;
+        } else 
+        if (c == backspace_char) {
+          if (index > 0) {
+            buf[--index] = '\0';
+            printf("\b \b"); // double backspace
+          }
+          continue;
+        }
+        buf[index++] = c;
+        if (isprint(c)) {
+          printf("%c", c);
+        }
+      }
+      if (strcmp(buf, "whoami") == 0) {
+        printf("MyStudentID\n");
+      } 
+      else
+      if (strcmp(buf, "exit") == 0) {
+        break;
+      } 
+      else 
+      {
+        printf("Invalid Command\n");
+      }
+    }
+    free(buf);
+    printf("Interactive Shell Terminated.\n");
+  }
+
+  /* Finish up. */
+  shutdown ();
+  thread_exit ();
+```
