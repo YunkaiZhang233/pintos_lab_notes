@@ -2,11 +2,10 @@
 
 ## References
 
-This set of lab notes is based on the [UCB CS-162 Fall 2020](https://inst.eecs.berkeley.edu/~cs162/fa20/) class and the [Pintos Lab Guide](https://alfredthiel.gitbook.io/pintosbook/) provided by Peking University.
+This set of lab notes is based on the [UCB CS-162 Fall 2020](https://inst.eecs.berkeley.edu/~cs162/fa20/) class,  [JHU CS-318 Project 0: Getting Real](https://www.cs.jhu.edu/~huang/cs318/fall21/project/project0.html) and the [Pintos Lab Guide](https://alfredthiel.gitbook.io/pintosbook/) provided by Peking University.
 
 Some other recommended readings include:
 
-- [JHU CS-318 Project 0: Getting Real](https://www.cs.jhu.edu/~huang/cs318/fall21/project/project0.html)
 - [Stanford CS-140 Pintos Specification](https://web.stanford.edu/class/cs140/projects/pintos/pintos.pdf)
 
 ## Task 1: Booting Pintos
