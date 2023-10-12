@@ -160,3 +160,5 @@ Similarly, when we are releasing a lock:
 Before manipulating the semaphore:
 
 - [ ] Resetting `t0`'s priority.
+
+**YOU WOULD ALSO HAVE TO MANIPULATE THE SEMAPHORES** as locks are eventually written in semaphores and it is the **SEMAPHORE** that actually controls the lock/unlock order of the threads.
